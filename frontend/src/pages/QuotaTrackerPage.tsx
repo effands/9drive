@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { CheckCircle, Cloud, Filter, Gauge, Link2, RefreshCw, Trash2 } from 'lucide-react'
+import { CheckCircle, Cloud, Filter, Gauge, Link2, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { PageHeader } from '@/components/drive/PageHeader'
@@ -83,11 +83,6 @@ export function QuotaTrackerPage() {
     }
   }
 
-  async function disconnect(accountId: string) {
-    await apiFetch(`/connected-accounts/${accountId}`, { method: 'DELETE' })
-    await load()
-  }
-
   return (
     <>
       <PageHeader title="Quota Tracker" description="Track and manage connected provider storage limits." actions={<><Button variant="outline" onClick={() => setAutoRefresh(!autoRefresh)}><CheckCircle className="h-4 w-4" />Auto-refresh {autoRefresh ? 'On' : 'Off'}</Button><Button variant="outline" onClick={refresh} disabled={refreshing}><RefreshCw className={refreshing ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} />{refreshing ? 'Refreshing...' : 'Refresh'}</Button><Button onClick={connectDrive}><Link2 className="h-4 w-4" />Connect Drive</Button></>} />
@@ -124,7 +119,7 @@ export function QuotaTrackerPage() {
                   <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-600 text-white"><Cloud className="h-6 w-6" /></div>
                   <div><h2 className="font-extrabold">Google Drive</h2><p className="text-sm text-slate-500">{account.email}</p></div>
                 </div>
-                <div className="flex gap-2"><Button variant="outline" size="icon" onClick={() => sync(account.id)} disabled={syncingAccountId === account.id}><RefreshCw className={syncingAccountId === account.id ? 'h-5 w-5 animate-spin' : 'h-5 w-5'} /></Button><Button variant="danger" size="icon" onClick={() => disconnect(account.id)}><Trash2 className="h-5 w-5" /></Button></div>
+                <div className="flex gap-2"><Button variant="outline" size="icon" onClick={() => sync(account.id)} disabled={syncingAccountId === account.id}><RefreshCw className={syncingAccountId === account.id ? 'h-5 w-5 animate-spin' : 'h-5 w-5'} /></Button></div>
               </div>
               <div className="mt-6">
                 <div className="mb-2 flex items-center justify-between text-sm">
