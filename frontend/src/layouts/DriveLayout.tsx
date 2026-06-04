@@ -4,7 +4,6 @@ import {
   Bell,
   FileArchive,
   Gauge,
-  HardDrive,
   LogOut,
   Menu,
   MoreVertical,
@@ -18,6 +17,7 @@ import {
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import { BrandLogo } from '@/components/drive/BrandLogo'
 import { DummyModal } from '@/components/drive/DummyModal'
 import { Input } from '@/components/ui/input'
 import { apiFetch, formatBytes } from '@/lib/api'
@@ -62,10 +62,8 @@ function Sidebar({ onNavigate, user, storage, breakdown, onLogout }: { onNavigat
   return (
     <aside className="flex h-full w-72 flex-col border-slate-200 bg-white p-5 lg:border-r">
       <div className="flex items-center gap-3 pb-5">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white shadow-lg shadow-blue-200">
-          <HardDrive className="h-6 w-6" />
-        </div>
-        <span className="text-2xl font-extrabold tracking-tight">IDrive</span>
+        <BrandLogo />
+        <span className="text-2xl font-extrabold tracking-tight">9Drive</span>
       </div>
 
       <div className="flex items-center gap-3 border-y border-slate-200 py-5">
@@ -173,10 +171,8 @@ export function DriveLayout() {
                 <Menu className="h-5 w-5" />
               </Button>
               <div className="flex items-center gap-2">
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-600 text-white shadow-lg shadow-blue-200">
-                  <HardDrive className="h-5 w-5" />
-                </div>
-                <span className="text-xl font-extrabold tracking-tight">IDrive</span>
+                <BrandLogo className="h-9 w-9" />
+                <span className="text-xl font-extrabold tracking-tight">9Drive</span>
               </div>
             </div>
             <div className="relative max-w-xl flex-1">

@@ -151,6 +151,7 @@ model File {
 model Folder {
   id                 String            @id @default(uuid()) @db.Char(36)
   userId             String            @map("user_id") @db.Char(36)
+  parentId           String?           @map("parent_id") @db.Char(36)
   connectedAccountId String?           @map("connected_account_id") @db.Char(36)
   provider           String            @default("google_drive") @db.VarChar(32)
   providerFolderId   String?           @map("provider_folder_id") @db.VarChar(191)
@@ -160,10 +161,13 @@ model Folder {
   updatedAt          DateTime          @updatedAt @map("updated_at")
   deletedAt          DateTime?         @map("deleted_at")
   user               User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent             Folder?           @relation("FolderChildren", fields: [parentId], references: [id], onDelete: SetNull)
+  children           Folder[]          @relation("FolderChildren")
   connectedAccount   ConnectedAccount? @relation(fields: [connectedAccountId], references: [id], onDelete: SetNull)
   files              File[]
 
   @@index([userId])
+  @@index([parentId])
   @@index([connectedAccountId])
   @@map("folders")
 }

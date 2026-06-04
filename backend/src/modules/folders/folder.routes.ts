@@ -9,17 +9,19 @@ folderRouter.use(requireAuth)
 const createSchema = z.object({
   name: z.string().min(1).max(255),
   color: z.string().min(1).max(64).optional(),
+  parentId: z.string().nullable().optional(),
 })
 
-function serializeFolder(folder: { id: string; name: string; color: string; createdAt: Date; updatedAt: Date }) {
+function serializeFolder(folder: { id: string; name: string; color: string; parentId?: string | null; createdAt: Date; updatedAt: Date }) {
   return { ...folder, createdAt: folder.createdAt.toISOString(), updatedAt: folder.updatedAt.toISOString() }
 }
 
 folderRouter.get('/', async (req: AuthRequest, res, next) => {
   try {
+    const query = z.object({ parentId: z.string().nullable().optional(), all: z.string().optional() }).parse(req.query)
     const folders = await prisma.folder.findMany({
-      where: { userId: req.user!.id, deletedAt: null },
-      select: { id: true, name: true, color: true, createdAt: true, updatedAt: true },
+      where: { userId: req.user!.id, deletedAt: null, ...(query.all === '1' ? {} : { parentId: query.parentId ?? null }) },
+      select: { id: true, name: true, color: true, parentId: true, createdAt: true, updatedAt: true },
       orderBy: { updatedAt: 'desc' },
     })
     return res.json({ folders: folders.map(serializeFolder) })
@@ -33,7 +35,7 @@ folderRouter.get('/recent', async (req: AuthRequest, res, next) => {
     const limit = Math.min(Number(req.query.limit ?? 4), 4)
     const folders = await prisma.folder.findMany({
       where: { userId: req.user!.id, deletedAt: null },
-      select: { id: true, name: true, color: true, createdAt: true, updatedAt: true },
+      select: { id: true, name: true, color: true, parentId: true, createdAt: true, updatedAt: true },
       orderBy: { updatedAt: 'desc' },
       take: limit,
     })
@@ -46,9 +48,10 @@ folderRouter.get('/recent', async (req: AuthRequest, res, next) => {
 folderRouter.post('/', async (req: AuthRequest, res, next) => {
   try {
     const body = createSchema.parse(req.body)
+    if (body.parentId) await prisma.folder.findFirstOrThrow({ where: { id: body.parentId, userId: req.user!.id, deletedAt: null } })
     const folder = await prisma.folder.create({
-      data: { userId: req.user!.id, name: body.name, color: body.color ?? 'text-blue-500' },
-      select: { id: true, name: true, color: true, createdAt: true, updatedAt: true },
+      data: { userId: req.user!.id, name: body.name, color: body.color ?? 'text-blue-500', parentId: body.parentId ?? null },
+      select: { id: true, name: true, color: true, parentId: true, createdAt: true, updatedAt: true },
     })
     return res.status(201).json({ folder: serializeFolder(folder) })
   } catch (error) {
@@ -66,7 +69,7 @@ folderRouter.patch('/:id', async (req: AuthRequest, res, next) => {
     if (folder.count === 0) return res.status(404).json({ code: 'FOLDER_NOT_FOUND', message: 'Folder not found.' })
     const updated = await prisma.folder.findFirstOrThrow({
       where: { id: String(req.params.id), userId: req.user!.id },
-      select: { id: true, name: true, color: true, createdAt: true, updatedAt: true },
+      select: { id: true, name: true, color: true, parentId: true, createdAt: true, updatedAt: true },
     })
     return res.json({ folder: serializeFolder(updated) })
   } catch (error) {

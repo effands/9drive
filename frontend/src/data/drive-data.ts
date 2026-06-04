@@ -11,7 +11,11 @@ export type FileItem = {
   mimeType?: string
   date: string
   size: string
+  sizeBytes?: string
   access: string
+  accountEmail?: string
+  accountProvider?: string
+  createdAt?: string
   kind: 'doc' | 'image' | 'video' | 'pdf'
   shared: number
   owner?: string
