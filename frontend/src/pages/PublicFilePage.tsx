@@ -25,6 +25,13 @@ export function PublicFilePage() {
     apiFetch<{ file: PublicFile }>(`/public/files/${token}`, { skipAuth: true }).then((data) => setFile(data.file)).catch(() => setFile(null))
   }, [token])
 
+  useEffect(() => {
+    document.title = file ? `${file.name} | 9Drive` : 'Shared file | 9Drive'
+    return () => {
+      document.title = '9Drive'
+    }
+  }, [file])
+
   return (
     <main className="flex min-h-screen items-center justify-center bg-slate-50 p-5">
       <Card className="w-full max-w-2xl p-6">
