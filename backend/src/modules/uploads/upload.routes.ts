@@ -11,6 +11,7 @@ export const uploadRouter = Router()
 uploadRouter.use(requireAuth)
 
 type UploadMeta = { fieldName: string; fileName: string; mimeType: string; sizeBytes: bigint; folderId?: string }
+type RoutingMode = 'most_available' | 'round_robin' | 'priority'
 
 function logUpload(message: string, metadata?: Record<string, unknown>) {
   console.info('[upload]', message, metadata ?? '')
@@ -21,6 +22,22 @@ function syncQuotaInBackground(accountId: string, sessionId: string) {
   syncGoogleQuota(accountId)
     .then(() => logUpload('quota sync completed', { accountId, sessionId }))
     .catch((error) => logUpload('quota sync failed', { accountId, sessionId, message: error instanceof Error ? error.message : 'Unknown error' }))
+}
+
+function normalizePriorityAccountIds(value: unknown) {
+  return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []
+}
+
+function byPriority<T extends { account: { id: string; createdAt: Date } }>(items: T[], priorityAccountIds: string[]) {
+  const order = new Map(priorityAccountIds.map((id, index) => [id, index]))
+  return [...items].sort((a, b) => {
+    const aOrder = order.get(a.account.id)
+    const bOrder = order.get(b.account.id)
+    if (aOrder !== undefined && bOrder !== undefined) return aOrder - bOrder
+    if (aOrder !== undefined) return -1
+    if (bOrder !== undefined) return 1
+    return a.account.createdAt.getTime() - b.account.createdAt.getTime()
+  })
 }
 
 async function selectAccount(userId: string, sizeBytes: bigint, reservedBytesByAccount = new Map<string, bigint>()) {
@@ -40,9 +57,26 @@ async function selectAccount(userId: string, sizeBytes: bigint, reservedBytesByA
     include: { storageAccount: true },
   })
 
-  return fresh
+  const eligible = fresh
     .map((account) => ({ account, availableBytes: account.storageAccount?.availableBytes === null || account.storageAccount?.availableBytes === undefined ? null : account.storageAccount.availableBytes - (reservedBytesByAccount.get(account.id) ?? 0n) }))
     .filter(({ availableBytes }) => availableBytes === null || availableBytes >= sizeBytes)
+
+  if (eligible.length === 0) return null
+
+  const policy = await prisma.uploadRoutingPolicy.upsert({ where: { userId }, create: { userId, mode: 'most_available', priorityAccountIds: [] }, update: {} })
+  const mode = (['most_available', 'round_robin', 'priority'].includes(policy.mode) ? policy.mode : 'most_available') as RoutingMode
+  const priorityAccountIds = normalizePriorityAccountIds(policy.priorityAccountIds)
+
+  if (mode === 'priority') return byPriority(eligible, priorityAccountIds)[0]?.account ?? null
+
+  if (mode === 'round_robin') {
+    const ordered = byPriority(eligible, priorityAccountIds)
+    const selected = ordered[policy.roundRobinCursor % ordered.length]?.account ?? ordered[0]?.account ?? null
+    await prisma.uploadRoutingPolicy.update({ where: { userId }, data: { roundRobinCursor: policy.roundRobinCursor + 1 } })
+    return selected
+  }
+
+  return eligible
     .sort((a, b) => {
       if (a.availableBytes === null && b.availableBytes === null) return a.account.provider === 's3' ? -1 : 1
       if (a.availableBytes === null) return a.account.provider === 's3' ? -1 : 1
@@ -109,7 +143,7 @@ uploadRouter.post('/', async (req: AuthRequest, res, next) => {
         const account = await selectAccount(req.user!.id, meta.sizeBytes, reservedBytesByAccount)
         if (!account) {
           fileStream.resume()
-          failed.push({ fileName, code: 'NO_ACCOUNT_WITH_ENOUGH_SPACE', message: 'No connected Google Drive account has enough space for this upload.' })
+          failed.push({ fileName, code: 'NO_ACCOUNT_WITH_ENOUGH_SPACE', message: 'No connected storage account has enough space for this upload.' })
           return
         }
         reservedBytesByAccount.set(account.id, (reservedBytesByAccount.get(account.id) ?? 0n) + meta.sizeBytes)
