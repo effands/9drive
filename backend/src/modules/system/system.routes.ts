@@ -14,6 +14,12 @@ systemRouter.post('/update', requireAuth, (req, res, next) => {
   exec('git pull', { cwd: projectRoot }, (error, stdout, stderr) => {
     if (error) {
       console.error('System update failed:', error)
+      if (error.message.includes('git: not found') || error.message.includes('not recognized') || error.message.includes('ENOENT')) {
+        return res.status(400).json({
+          code: 'GIT_NOT_FOUND',
+          message: 'Git is not installed inside the app container. Since you are running 9Drive in Docker, please update by running:\n\n1. ssh root@103.65.237.136\n2. cd 9drive\n3. git pull\n4. docker-compose down && docker-compose up -d --build\n\ndirectly in your VPS host terminal.'
+        })
+      }
       return res.status(500).json({
         code: 'UPDATE_FAILED',
         message: 'Failed to run git pull. Make sure git is installed and configured.',

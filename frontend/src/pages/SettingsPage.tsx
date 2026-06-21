@@ -40,6 +40,9 @@ export function SettingsPage() {
   const [avatarError, setAvatarError] = useState(false)
   const [selectedAccountId, setSelectedAccountId] = useState('')
   const [updatingSystem, setUpdatingSystem] = useState(false)
+  const [updateModalOpen, setUpdateModalOpen] = useState(false)
+  const [updateModalTitle, setUpdateModalTitle] = useState('')
+  const [updateModalMessage, setUpdateModalMessage] = useState('')
 
   // Google OAuth Config states
   const [googleClientId, setGoogleClientId] = useState('')
@@ -55,12 +58,13 @@ export function SettingsPage() {
     setMessage('')
     try {
       const data = await apiFetch<{ message: string }>('/system/update', { method: 'POST' })
-      setMessage(data.message || 'System updated successfully. Reloading...')
-      setTimeout(() => {
-        window.location.reload()
-      }, 3000)
+      setUpdateModalTitle('System Updated')
+      setUpdateModalMessage(data.message || 'System updated successfully. Reloading...')
+      setUpdateModalOpen(true)
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'System update failed')
+      setUpdateModalTitle('System Update Failed')
+      setUpdateModalMessage(error instanceof Error ? error.message : 'System update failed')
+      setUpdateModalOpen(true)
     } finally {
       setUpdatingSystem(false)
     }
@@ -398,6 +402,36 @@ export function SettingsPage() {
           <div className="grid gap-3 sm:flex sm:justify-end">
             <Button variant="outline" onClick={() => setAccountToDisconnect(null)} disabled={Boolean(disconnectingAccountId)}>Cancel</Button>
             <Button variant="danger" onClick={disconnect} disabled={Boolean(disconnectingAccountId)}><Trash2 className="h-4 w-4" />{disconnectingAccountId ? 'Disconnecting...' : 'Disconnect'}</Button>
+          </div>
+        </div>
+      </DummyModal>
+
+      <DummyModal
+        open={updateModalOpen}
+        title={updateModalTitle}
+        description={updateModalTitle === 'System Updated' ? 'Update Status' : 'Troubleshooting details'}
+        onClose={() => {
+          setUpdateModalOpen(false)
+          if (updateModalTitle === 'System Updated') {
+            window.location.reload()
+          }
+        }}
+      >
+        <div className="grid gap-4">
+          <div className="rounded-xl bg-slate-50 dark:bg-slate-900/60 p-4 text-sm leading-relaxed whitespace-pre-line border border-slate-100 dark:border-slate-800">
+            {updateModalMessage}
+          </div>
+          <div className="flex justify-end">
+            <Button
+              onClick={() => {
+                setUpdateModalOpen(false)
+                if (updateModalTitle === 'System Updated') {
+                  window.location.reload()
+                }
+              }}
+            >
+              Dismiss
+            </Button>
           </div>
         </div>
       </DummyModal>
