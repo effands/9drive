@@ -418,7 +418,7 @@ export function SettingsPage() {
         }}
       >
         <div className="grid gap-4">
-          <div className="rounded-xl bg-slate-50 dark:bg-slate-900/60 p-4 text-sm leading-relaxed whitespace-pre-line border border-slate-100 dark:border-slate-800">
+          <div className="rounded-xl bg-slate-50 dark:bg-slate-950/40 p-4 text-sm text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-line border border-slate-100 dark:border-slate-800">
             {updateModalMessage}
           </div>
           <div className="flex justify-end">
