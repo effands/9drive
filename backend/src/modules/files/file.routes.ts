@@ -219,13 +219,19 @@ fileRouter.get('/shared-links', async (req: AuthRequest, res, next) => {
       orderBy: { createdAt: 'desc' },
     })
     return res.json({
-      shares: shares.filter((share) => share.file.status === 'active').map((share) => ({
-        id: share.id,
-        url: share.token ? `${env.FRONTEND_URL}/public/files/${share.token}` : null,
-        createdAt: share.createdAt.toISOString(),
-        expiresAt: share.expiresAt?.toISOString() ?? null,
-        file: { ...share.file, sizeBytes: share.file.sizeBytes.toString() },
-      })),
+      shares: shares.filter((share) => share.file.status === 'active').map((share) => {
+        let url = share.token ? `${env.FRONTEND_URL}/public/files/${share.token}` : null
+        if (share.file.provider === 'google_drive') {
+          url = `https://drive.google.com/open?id=${share.file.providerFileId}`
+        }
+        return {
+          id: share.id,
+          url,
+          createdAt: share.createdAt.toISOString(),
+          expiresAt: share.expiresAt?.toISOString() ?? null,
+          file: { ...share.file, sizeBytes: share.file.sizeBytes.toString() },
+        }
+      })
     })
   } catch (error) {
     return next(error)
@@ -283,11 +289,21 @@ fileRouter.post('/:id/share', async (req: AuthRequest, res, next) => {
     const fileId = String(req.params.id)
     const file = await prisma.file.findFirstOrThrow({ where: { id: fileId, userId: req.user!.id, status: 'active' } })
     const existingShare = await prisma.fileShare.findFirst({ where: { fileId: file.id, userId: req.user!.id, enabled: true, OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }] }, orderBy: { createdAt: 'desc' } })
-    if (existingShare?.token) return res.json({ url: `${env.FRONTEND_URL}/public/files/${existingShare.token}`, shareId: existingShare.id })
-    if (existingShare) await prisma.fileShare.update({ where: { id: existingShare.id }, data: { enabled: false } })
-    const token = randomToken(32)
-    const share = await prisma.fileShare.create({ data: { fileId: file.id, userId: req.user!.id, token, tokenHash: hashToken(token) } })
-    return res.status(201).json({ url: `${env.FRONTEND_URL}/public/files/${token}`, shareId: share.id })
+    
+    let shareId = existingShare?.id
+    let token = existingShare?.token
+    if (!existingShare) {
+      token = randomToken(32)
+      const share = await prisma.fileShare.create({ data: { fileId: file.id, userId: req.user!.id, token, tokenHash: hashToken(token) } })
+      shareId = share.id
+    }
+    
+    if (file.provider === 'google_drive') {
+      const url = `https://drive.google.com/open?id=${file.providerFileId}`
+      return res.status(existingShare ? 200 : 201).json({ url, shareId })
+    }
+    
+    return res.status(existingShare ? 200 : 201).json({ url: `${env.FRONTEND_URL}/public/files/${token}`, shareId })
   } catch (error) {
     return next(error)
   }

@@ -20,7 +20,7 @@ export function FileTable({ files, mode = 'default', selectedFileIds = new Set<s
           const selected = selectedFileIds.has(file.id ?? '')
           const meta = mode === 'archived' ? file.location : mode === 'recent' ? file.openedDate : mode === 'starred' ? file.starredDate : file.date
           return (
-            <article key={file.id ?? file.name} draggable onDragStart={(event) => { event.dataTransfer.setData('text/plain', file.id ?? ''); event.dataTransfer.effectAllowed = 'move' }} onClick={() => onToggleFile?.(file)} onContextMenu={(event) => onFileContextMenu?.(event, file)} className={selected ? 'overflow-hidden rounded-2xl border border-blue-200 bg-blue-50 p-3.5 shadow-sm cursor-grab active:cursor-grabbing' : 'overflow-hidden rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm cursor-grab active:cursor-grabbing'}>
+            <article key={file.id ?? file.name} draggable onDragStart={(event) => { event.dataTransfer.setData('text/plain', file.id ?? ''); event.dataTransfer.effectAllowed = 'move' }} onClick={() => onToggleFile?.(file)} onContextMenu={(event) => onFileContextMenu?.(event, file)} className={selected ? 'overflow-hidden rounded-2xl border file-selected p-3.5 shadow-sm cursor-grab active:cursor-grabbing' : 'overflow-hidden rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm cursor-grab active:cursor-grabbing'}>
               <div className="flex items-center gap-3">
                 {onToggleFile ? <input type="checkbox" className="h-4 w-4 shrink-0 accent-blue-600" checked={selected} onChange={() => onToggleFile?.(file)} onClick={(event) => event.stopPropagation()} /> : null}
                 <div className="shrink-0">{mode === 'starred' ? <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" /> : <FileIcon kind={file.kind} />}</div>
@@ -44,7 +44,7 @@ export function FileTable({ files, mode = 'default', selectedFileIds = new Set<s
       <div className="hidden overflow-x-auto sm:block">
         <table className="w-full min-w-[760px] border-collapse text-left text-sm">
           <thead>
-            <tr className="border-b border-slate-200 text-slate-950">
+            <tr className="border-b border-slate-200/20 text-slate-950">
               <th className="w-9 py-2.5"><input type="checkbox" className="h-4 w-4 accent-blue-600" checked={allSelected} onChange={onToggleAll} /></th>
               <th className="py-2.5 font-extrabold">Name</th>
               {mode === 'default' ? <th className="py-2.5 font-extrabold text-slate-500 font-semibold">Folder</th> : null}
@@ -60,7 +60,7 @@ export function FileTable({ files, mode = 'default', selectedFileIds = new Set<s
           </thead>
           <tbody>
             {files.map((file) => (
-              <tr key={file.id ?? file.name} draggable onDragStart={(event) => { event.dataTransfer.setData('text/plain', file.id ?? ''); event.dataTransfer.effectAllowed = 'move' }} onContextMenu={(event) => onFileContextMenu?.(event, file)} onClick={() => onToggleFile?.(file)} className={selectedFileIds.has(file.id ?? '') ? 'group border-b border-blue-100 bg-blue-50 transition hover:bg-blue-50 cursor-grab active:cursor-grabbing' : 'group border-b border-slate-100 transition hover:bg-slate-50 cursor-grab active:cursor-grabbing'}>
+              <tr key={file.id ?? file.name} draggable onDragStart={(event) => { event.dataTransfer.setData('text/plain', file.id ?? ''); event.dataTransfer.effectAllowed = 'move' }} onContextMenu={(event) => onFileContextMenu?.(event, file)} onClick={() => onToggleFile?.(file)} className={selectedFileIds.has(file.id ?? '') ? 'group border-b file-selected transition hover:bg-orange-500/15 cursor-grab active:cursor-grabbing' : 'group border-b border-slate-200/10 transition hover:bg-slate-100 cursor-grab active:cursor-grabbing'}>
                 <td className="py-2.5"><input type="checkbox" className="h-4 w-4 accent-blue-600" checked={selectedFileIds.has(file.id ?? '')} onChange={() => onToggleFile?.(file)} onClick={(event) => event.stopPropagation()} /></td>
                 <td className="py-2.5 font-semibold">
                   <span className="flex min-w-0 items-center gap-2.5">

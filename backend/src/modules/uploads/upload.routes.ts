@@ -184,8 +184,15 @@ export async function handleUpload(req: AuthRequest, res: Response, next: NextFu
           const auth = await getAuthedGoogleClient(account)
           const drive = google.drive({ version: 'v3', auth })
           const appFolderId = await ensureGoogleAppFolder(account)
+          let targetParentId = appFolderId
+          if (folderId) {
+            const folderRecord = await prisma.folder.findFirst({ where: { id: folderId, userId: req.user!.id } })
+            if (folderRecord?.providerFolderId) {
+              targetParentId = folderRecord.providerFolderId
+            }
+          }
           const uploaded = await drive.files.create({
-            requestBody: { name: fileName, parents: [appFolderId] },
+            requestBody: { name: fileName, parents: [targetParentId] },
             media: { mimeType: meta.mimeType, body: fileStream },
             fields: 'id,name,mimeType,size',
           })
@@ -298,6 +305,13 @@ uploadRouter.post('/resumable/init', requireAuth, async (req: AuthRequest, res, 
 
     const auth = await getAuthedGoogleClient(account)
     const appFolderId = await ensureGoogleAppFolder(account)
+    let targetParentId = appFolderId
+    if (folderId) {
+      const folderRecord = await prisma.folder.findFirst({ where: { id: folderId, userId: req.user!.id } })
+      if (folderRecord?.providerFolderId) {
+        targetParentId = folderRecord.providerFolderId
+      }
+    }
 
     // Initiate Google Drive Resumable Session
     const headers = new Headers()
@@ -312,7 +326,7 @@ uploadRouter.post('/resumable/init', requireAuth, async (req: AuthRequest, res, 
       headers,
       body: JSON.stringify({
         name: body.fileName,
-        parents: [appFolderId]
+        parents: [targetParentId]
       })
     })
 
