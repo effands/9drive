@@ -1,5 +1,5 @@
-import { type FormEvent, useEffect, useState } from 'react'
-import { NavLink, Outlet, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
+import { type FormEvent, type ReactNode, useEffect, useState } from 'react'
+import { Outlet, useOutletContext, NavLink, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Bell,
   Braces,
@@ -153,8 +153,8 @@ function Sidebar({ onNavigate, user, storage, breakdown, onLogout }: { onNavigat
         ))}
       </nav>
 
-      <div className="mt-auto border-t border-slate-200/60 pt-4 text-xs">
-        <div className="mb-3 space-y-1">
+      <div className="mt-auto border-t border-slate-200/60 pt-4 text-[13px]">
+        <div className="mb-3 space-y-1.5">
           {items.map(([label, value, color]) => (
             <div key={label} className="flex items-center justify-between text-slate-500 font-medium">
               <span className="flex items-center gap-1.5"><span className={cn('h-1.5 w-1.5 rounded-full', color)} />{label}</span>
@@ -162,7 +162,7 @@ function Sidebar({ onNavigate, user, storage, breakdown, onLogout }: { onNavigat
             </div>
           ))}
         </div>
-        <div className="flex justify-between font-bold text-slate-700">
+        <div className="flex justify-between text-sm font-bold text-slate-700">
           <span>{formatBytes(storage?.usedBytes)} used</span>
           <span className="text-slate-400">{formatBytes(storage?.totalBytes)}</span>
         </div>
@@ -183,6 +183,14 @@ type ConnectedAccount = {
   provider: string
 }
 
+export type DriveLayoutContext = {
+  setHeaderActions: (actions: ReactNode) => void
+}
+
+export function useDriveLayoutActions() {
+  return useOutletContext<DriveLayoutContext>()
+}
+
 export function DriveLayout() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -193,6 +201,7 @@ export function DriveLayout() {
   const [storage, setStorage] = useState<StorageSummary | null>(null)
   const [breakdown, setBreakdown] = useState<StorageBreakdown>({ photo: '0', video: '0', document: '0' })
   const [infoOpen, setInfoOpen] = useState(false)
+  const [headerActions, setHeaderActions] = useState<ReactNode>(null)
   const { uploadProgress, setUploadProgress, retryFailedUpload } = useUpload()
   const [uploadProgressCollapsed, setUploadProgressCollapsed] = useState(false)
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
@@ -467,7 +476,13 @@ export function DriveLayout() {
                 </div>
               )}
             </div>
-             <div className="relative hidden flex-wrap gap-3 lg:flex">
+            {/* Header actions injected by child pages */}
+            {headerActions ? (
+              <div className="hidden lg:flex items-center gap-2 shrink-0">
+                {headerActions}
+              </div>
+            ) : null}
+             <div className="relative hidden flex-wrap gap-2 lg:flex shrink-0">
               <Button variant="outline" size="icon" aria-label="Toggle theme" onClick={toggleTheme}>
                 {theme === 'light' ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
               </Button>
@@ -478,7 +493,7 @@ export function DriveLayout() {
               {infoOpen ? <SystemInfoDropdown storage={storage} /> : null}
             </div>
           </header>
-          <Outlet />
+          <Outlet context={{ setHeaderActions } satisfies DriveLayoutContext} />
         </section>
       </div>
 
