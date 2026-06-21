@@ -126,6 +126,22 @@ export function AllFilesPage() {
     const params = new URLSearchParams()
     if (activeFolderId) params.set('folderId', activeFolderId)
     if (searchQuery) params.set('q', searchQuery)
+    
+    // Add advanced search filters
+    const kind = searchParams.get('kind')
+    const accountId = searchParams.get('accountId')
+    const minSize = searchParams.get('minSize')
+    const maxSize = searchParams.get('maxSize')
+    const startDate = searchParams.get('startDate')
+    const endDate = searchParams.get('endDate')
+
+    if (kind) params.set('kind', kind)
+    if (accountId) params.set('accountId', accountId)
+    if (minSize) params.set('minSize', minSize)
+    if (maxSize) params.set('maxSize', maxSize)
+    if (startDate) params.set('startDate', startDate)
+    if (endDate) params.set('endDate', endDate)
+
     const query = params.toString()
     const path = query ? `/files?${query}` : '/files'
     const data = await apiFetch<{ files: BackendFile[] }>(path)
@@ -144,6 +160,26 @@ export function AllFilesPage() {
 
   async function loadAll() {
     await Promise.all([loadFiles(), loadFolders()])
+  }
+
+  async function handleDropItem(fileId: string, targetFolderId: string) {
+    const fileIds = selectedFileIds.has(fileId) ? Array.from(selectedFileIds) : [fileId]
+    setLoading(true)
+    setMessage('')
+    try {
+      await apiFetch('/files/batch', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fileIds, folderId: targetFolderId })
+      })
+      setMessage(`Successfully moved ${fileIds.length} item(s).`)
+      loadAll().catch(() => undefined)
+      setSelectedFileIds(new Set())
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Failed to move items')
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(() => {
@@ -670,9 +706,9 @@ export function AllFilesPage() {
       <div onContextMenu={openEmptyContextMenu} className="min-h-[620px] w-full min-w-0">
       <PageHeader title={activeFolder ? <span className="block min-w-0 truncate"><button className="text-blue-600 hover:underline" onClick={closeFolder}>All Files</button>{folderBreadcrumbs.map((folder, index) => <span key={folder.id}><span className="text-slate-400"> / </span>{index === folderBreadcrumbs.length - 1 ? <span>{folder.name}</span> : <button className="text-blue-600 hover:underline" onClick={() => folder.id && openFolderById(folder.id)}>{folder.name}</button>}</span>)}</span> : 'All Files'} actions={<><Button className="w-full" onClick={() => setUploadOpen(true)}><Upload className="h-4 w-4" />Upload</Button><Button className="w-full" variant="outline" onClick={() => setFolderOpen(true)}><FolderPlus className="h-4 w-4" />New Folder</Button><Button className="w-full" variant="outline" disabled={syncingDrive} onClick={syncGoogleDrive}><RefreshCw className={syncingDrive ? 'h-4 w-4 animate-spin' : 'h-4 w-4'} />{syncingDrive ? 'Syncing...' : 'Sync Drive'}</Button></>} />
       {message ? <p className="mt-5 rounded-xl bg-blue-50 p-3 text-sm text-blue-700">{message}</p> : null}
-      {!activeFolder && (recentFolders.length > 0 ? <FolderGrid items={recentFolders} mobileTwoColumns onFolderMenu={openFolderMenu} onFolderOpen={openFolder} /> : <p className="mt-8 rounded-xl bg-slate-50 p-5 text-sm text-slate-500">No folders yet. Click New Folder to organize uploads.</p>)}
-      {!activeFolder && moreFolders.length > 0 ? <Card className="mt-5 p-4 sm:p-5"><h2 className="font-extrabold">More Folders</h2><div className="mt-4 grid gap-3 sm:grid-cols-2">{moreFolders.map((folder) => <div key={folder.id} onClick={() => openFolder(folder)} onContextMenu={(event) => openFolderMenu(event, folder)} className="flex cursor-pointer items-center justify-between gap-3 rounded-xl bg-slate-50 p-3 hover:bg-slate-100"><div className="flex min-w-0 items-center gap-3"><FolderVisual folder={folder} className="h-6 w-6 shrink-0" /><div className="min-w-0"><p className="truncate font-semibold">{folder.name}</p><p className="truncate text-xs text-slate-500">{folder.updated}</p></div></div><button className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-500 hover:bg-white sm:h-8 sm:w-8 sm:rounded-lg" onClick={(event) => { event.stopPropagation(); openFolderMenu(event, folder) }} aria-label={`Open ${folder.name} menu`}><MoreVertical className="h-5 w-5" /></button></div>)}</div></Card> : null}
-      {activeFolder && folders.length > 0 ? <Card className="mt-5 p-4 sm:p-5"><h2 className="font-extrabold">Folders</h2><div className="mt-4 grid gap-3 sm:grid-cols-2">{folders.map((folder) => <div key={folder.id} onClick={() => openFolder(folder)} onContextMenu={(event) => openFolderMenu(event, folder)} className="flex cursor-pointer items-center justify-between gap-3 rounded-xl bg-slate-50 p-3 hover:bg-slate-100"><div className="flex min-w-0 items-center gap-3"><FolderVisual folder={folder} className="h-6 w-6 shrink-0" /><div className="min-w-0"><p className="truncate font-semibold">{folder.name}</p><p className="truncate text-xs text-slate-500">{folder.updated}</p></div></div><button className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-500 hover:bg-white sm:h-8 sm:w-8 sm:rounded-lg" onClick={(event) => { event.stopPropagation(); openFolderMenu(event, folder) }} aria-label={`Open ${folder.name} menu`}><MoreVertical className="h-5 w-5" /></button></div>)}</div></Card> : null}
+      {!activeFolder && (recentFolders.length > 0 ? <FolderGrid items={recentFolders} mobileTwoColumns onFolderMenu={openFolderMenu} onFolderOpen={openFolder} onDropItem={handleDropItem} /> : <p className="mt-8 rounded-xl bg-slate-50 p-5 text-sm text-slate-500">No folders yet. Click New Folder to organize uploads.</p>)}
+      {!activeFolder && moreFolders.length > 0 ? <Card className="mt-5 p-4 sm:p-5"><h2 className="font-extrabold">More Folders</h2><div className="mt-4 grid gap-3 sm:grid-cols-2">{moreFolders.map((folder) => <div key={folder.id} onClick={() => openFolder(folder)} onContextMenu={(event) => openFolderMenu(event, folder)} onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = 'move' }} onDragEnter={(event) => { event.currentTarget.classList.add('bg-blue-50/50', 'border-blue-300') }} onDragLeave={(event) => { event.currentTarget.classList.remove('bg-blue-50/50', 'border-blue-300') }} onDrop={(event) => { event.preventDefault(); event.currentTarget.classList.remove('bg-blue-50/50', 'border-blue-300'); const fileId = event.dataTransfer.getData('text/plain'); if (fileId && folder.id) handleDropItem(fileId, folder.id) }} className="flex cursor-pointer items-center justify-between gap-3 rounded-xl bg-slate-50 p-3 hover:bg-slate-100 transition-all border border-transparent"><div className="flex min-w-0 items-center gap-3"><FolderVisual folder={folder} className="h-6 w-6 shrink-0" /><div className="min-w-0"><p className="truncate font-semibold">{folder.name}</p><p className="truncate text-xs text-slate-500">{folder.updated}</p></div></div><button className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-500 hover:bg-white sm:h-8 sm:w-8 sm:rounded-lg" onClick={(event) => { event.stopPropagation(); openFolderMenu(event, folder) }} aria-label={`Open ${folder.name} menu`}><MoreVertical className="h-5 w-5" /></button></div>)}</div></Card> : null}
+      {activeFolder && folders.length > 0 ? <Card className="mt-5 p-4 sm:p-5"><h2 className="font-extrabold">Folders</h2><div className="mt-4 grid gap-3 sm:grid-cols-2">{folders.map((folder) => <div key={folder.id} onClick={() => openFolder(folder)} onContextMenu={(event) => openFolderMenu(event, folder)} onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = 'move' }} onDragEnter={(event) => { event.currentTarget.classList.add('bg-blue-50/50', 'border-blue-300') }} onDragLeave={(event) => { event.currentTarget.classList.remove('bg-blue-50/50', 'border-blue-300') }} onDrop={(event) => { event.preventDefault(); event.currentTarget.classList.remove('bg-blue-50/50', 'border-blue-300'); const fileId = event.dataTransfer.getData('text/plain'); if (fileId && folder.id) handleDropItem(fileId, folder.id) }} className="flex cursor-pointer items-center justify-between gap-3 rounded-xl bg-slate-50 p-3 hover:bg-slate-100 transition-all border border-transparent"><div className="flex min-w-0 items-center gap-3"><FolderVisual folder={folder} className="h-6 w-6 shrink-0" /><div className="min-w-0"><p className="truncate font-semibold">{folder.name}</p><p className="truncate text-xs text-slate-500">{folder.updated}</p></div></div><button className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-500 hover:bg-white sm:h-8 sm:w-8 sm:rounded-lg" onClick={(event) => { event.stopPropagation(); openFolderMenu(event, folder) }} aria-label={`Open ${folder.name} menu`}><MoreVertical className="h-5 w-5" /></button></div>)}</div></Card> : null}
       <div className="mt-8 flex flex-col gap-3 sm:mt-10 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap items-center gap-3"><Button variant="soft" className="hidden sm:inline-flex"><Archive className="h-4 w-4" />Recents</Button><Button variant="soft" className="hidden sm:inline-flex"><Star className="h-4 w-4" />Starred</Button>{selectedFileIds.size > 0 ? <div className="flex w-full flex-col gap-3 rounded-2xl border border-blue-100 bg-blue-50 p-3 sm:w-auto sm:flex-row sm:items-center sm:border-0 sm:bg-transparent sm:p-0"><span className="text-sm font-extrabold text-slate-700">{selectedFileIds.size} selected</span><div className="grid grid-cols-4 gap-2 sm:flex sm:gap-3"><Button className="w-full" variant="outline" onClick={downloadBatchAsZip}><Download className="h-4 w-4" />ZIP</Button><Button className="w-full" variant="outline" onClick={() => setMoveOpen(true)}><FolderInput className="h-4 w-4" />Move</Button><Button className="w-full" variant="danger" onClick={() => setDeleteOpen(true)}><Trash2 className="h-4 w-4" />Delete</Button><Button className="w-full" variant="ghost" onClick={clearSelection}>Clear</Button></div></div> : null}</div>
         <div className="flex gap-3"><Button variant={fileViewMode === 'grid' ? 'soft' : 'outline'} size="icon" aria-label="Show files as grid" aria-pressed={fileViewMode === 'grid'} onClick={() => changeFileViewMode('grid')}><LayoutGrid className="h-5 w-5" /></Button><Button variant={fileViewMode === 'list' ? 'soft' : 'outline'} size="icon" aria-label="Show files as list" aria-pressed={fileViewMode === 'list'} onClick={() => changeFileViewMode('list')}><List className="h-5 w-5" /></Button></div>

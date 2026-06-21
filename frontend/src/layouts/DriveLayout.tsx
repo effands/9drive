@@ -5,6 +5,7 @@ import {
   Braces,
   FileArchive,
   Gauge,
+  History,
   LogOut,
   Menu,
   Moon,
@@ -33,6 +34,7 @@ const menu = [
   { label: 'Shared With Me', icon: Share2, href: '/shared' },
   { label: 'Starred', icon: Star, href: '/starred', disabled: true },
   { label: 'Recycle Bin', icon: Trash2, href: '/trash' },
+  { label: 'Activity Log', icon: History, href: '/activity' },
 ]
 
 type StorageSummary = {
@@ -165,6 +167,12 @@ function Sidebar({ onNavigate, user, storage, breakdown, onLogout }: { onNavigat
   )
 }
 
+type ConnectedAccount = {
+  id: string
+  email: string
+  provider: string
+}
+
 export function DriveLayout() {
   const navigate = useNavigate()
   const location = useLocation()
@@ -183,6 +191,28 @@ export function DriveLayout() {
     const saved = localStorage.getItem('9drive:theme')
     if (saved === 'light' || saved === 'dark') return saved
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+  })
+
+  // Advanced search states
+  const [accounts, setAccounts] = useState<ConnectedAccount[]>([])
+  const [filtersOpen, setFiltersOpen] = useState(false)
+  const [filterKind, setFilterKind] = useState(searchParams.get('kind') ?? '')
+  const [filterAccountId, setFilterAccountId] = useState(searchParams.get('accountId') ?? '')
+  const [filterMinSize, setFilterMinSize] = useState(() => {
+    const min = searchParams.get('minSize')
+    return min ? String(Math.round(Number(min) / (1024 * 1024))) : ''
+  })
+  const [filterMaxSize, setFilterMaxSize] = useState(() => {
+    const max = searchParams.get('maxSize')
+    return max ? String(Math.round(Number(max) / (1024 * 1024))) : ''
+  })
+  const [filterStartDate, setFilterStartDate] = useState(() => {
+    const raw = searchParams.get('startDate')
+    return raw ? raw.split('T')[0] : ''
+  })
+  const [filterEndDate, setFilterEndDate] = useState(() => {
+    const raw = searchParams.get('endDate')
+    return raw ? raw.split('T')[0] : ''
   })
 
   useEffect(() => {
@@ -208,8 +238,33 @@ export function DriveLayout() {
     ])
   }
 
+  async function loadConnectedAccounts() {
+    try {
+      const data = await apiFetch<{ accounts: ConnectedAccount[] }>('/connected-accounts')
+      setAccounts(data.accounts)
+    } catch (e) {
+      console.error('Failed to load accounts for filter dropdown', e)
+    }
+  }
+
   useEffect(() => {
     setSearchValue(searchParams.get('q') ?? '')
+    setFilterKind(searchParams.get('kind') ?? '')
+    setFilterAccountId(searchParams.get('accountId') ?? '')
+    setFilterMinSize(() => {
+      const min = searchParams.get('minSize')
+      return min ? String(Math.round(Number(min) / (1024 * 1024))) : ''
+    })
+    setFilterMaxSize(() => {
+      const max = searchParams.get('maxSize')
+      return max ? String(Math.round(Number(max) / (1024 * 1024))) : ''
+    })
+    
+    const rawStart = searchParams.get('startDate')
+    setFilterStartDate(rawStart ? rawStart.split('T')[0] : '')
+
+    const rawEnd = searchParams.get('endDate')
+    setFilterEndDate(rawEnd ? rawEnd.split('T')[0] : '')
   }, [searchParams])
 
   async function logout() {
@@ -218,13 +273,62 @@ export function DriveLayout() {
     navigate('/login')
   }
 
+  function applyFilters() {
+    const nextParams = new URLSearchParams()
+    const activeFolderId = searchParams.get('folderId')
+    if (activeFolderId && location.pathname === '/all-files') {
+      nextParams.set('folderId', activeFolderId)
+    }
+
+    const q = searchValue.trim()
+    if (q) nextParams.set('q', q)
+
+    if (filterKind) nextParams.set('kind', filterKind)
+    if (filterAccountId) nextParams.set('accountId', filterAccountId)
+
+    if (filterMinSize) {
+      const bytes = Number(filterMinSize) * 1024 * 1024
+      if (!isNaN(bytes)) nextParams.set('minSize', String(bytes))
+    }
+    if (filterMaxSize) {
+      const bytes = Number(filterMaxSize) * 1024 * 1024
+      if (!isNaN(bytes)) nextParams.set('maxSize', String(bytes))
+    }
+
+    if (filterStartDate) {
+      nextParams.set('startDate', new Date(filterStartDate).toISOString())
+    }
+    if (filterEndDate) {
+      nextParams.set('endDate', new Date(filterEndDate).toISOString())
+    }
+
+    setFiltersOpen(false)
+    navigate({ pathname: '/all-files', search: nextParams.toString() })
+  }
+
+  function clearFilters() {
+    setFilterKind('')
+    setFilterAccountId('')
+    setFilterMinSize('')
+    setFilterMaxSize('')
+    setFilterStartDate('')
+    setFilterEndDate('')
+    setFiltersOpen(false)
+
+    const nextParams = new URLSearchParams()
+    const activeFolderId = searchParams.get('folderId')
+    if (activeFolderId && location.pathname === '/all-files') {
+      nextParams.set('folderId', activeFolderId)
+    }
+    const q = searchValue.trim()
+    if (q) nextParams.set('q', q)
+
+    navigate({ pathname: '/all-files', search: nextParams.toString() })
+  }
+
   function searchFiles(event: FormEvent) {
     event.preventDefault()
-    const nextParams = new URLSearchParams(location.pathname === '/all-files' ? searchParams : undefined)
-    const query = searchValue.trim()
-    if (query) nextParams.set('q', query)
-    else nextParams.delete('q')
-    navigate({ pathname: '/all-files', search: nextParams.toString() })
+    applyFilters()
   }
 
   async function loadRepoUpdates() {
@@ -264,6 +368,7 @@ export function DriveLayout() {
       })
       .catch(() => undefined)
     loadSidebarStats().catch(() => undefined)
+    loadConnectedAccounts().catch(() => undefined)
     window.addEventListener('9drive:storage-changed', loadSidebarStats)
     return () => window.removeEventListener('9drive:storage-changed', loadSidebarStats)
   }, [])
@@ -316,11 +421,73 @@ export function DriveLayout() {
                 </div>
               </div>
             </div>
-            <form onSubmit={searchFiles} className="relative w-full min-w-0 flex-1 xl:max-w-xl">
-              <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-500" />
-              <Input value={searchValue} onChange={(event) => setSearchValue(event.target.value)} placeholder="Search Documents" className="pl-11 pr-12" />
-              <button type="submit" className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500" aria-label="Search files"><SlidersHorizontal className="h-5 w-5" /></button>
-            </form>
+            <div className="relative w-full min-w-0 flex-1 xl:max-w-xl">
+              <form onSubmit={searchFiles} className="relative w-full">
+                <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-500" />
+                <Input value={searchValue} onChange={(event) => setSearchValue(event.target.value)} placeholder="Search Documents" className="pl-11 pr-12" />
+                <button type="button" onClick={() => setFiltersOpen(!filtersOpen)} className={cn("absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-900 transition-colors", filtersOpen && "text-blue-600 hover:text-blue-700")} aria-label="Search filters"><SlidersHorizontal className="h-5 w-5" /></button>
+              </form>
+
+              {filtersOpen && (
+                <div className="absolute left-0 right-0 top-12 z-50 rounded-2xl border border-slate-200 bg-white/95 p-5 shadow-2xl backdrop-blur-xl animate-in fade-in slide-in-from-top-2 duration-150">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <span className="text-sm font-extrabold text-slate-900">Advanced Search Filters</span>
+                    <button type="button" onClick={clearFilters} className="text-xs font-bold text-blue-600 hover:text-blue-700">Clear All</button>
+                  </div>
+                  
+                  <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                    {/* File Kind */}
+                    <div>
+                      <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">File Type</label>
+                      <select value={filterKind} onChange={(e) => setFilterKind(e.target.value)} className="mt-1 block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:border-blue-500 focus:bg-white focus:outline-none">
+                        <option value="">All Types</option>
+                        <option value="image">Image</option>
+                        <option value="video">Video</option>
+                        <option value="pdf">PDF</option>
+                        <option value="doc">Document</option>
+                        <option value="archive">Archive</option>
+                      </select>
+                    </div>
+
+                    {/* Connected Account */}
+                    <div>
+                      <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Connected Account</label>
+                      <select value={filterAccountId} onChange={(e) => setFilterAccountId(e.target.value)} className="mt-1 block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:border-blue-500 focus:bg-white focus:outline-none">
+                        <option value="">All Accounts</option>
+                        {accounts.map((acc) => (
+                          <option key={acc.id} value={acc.id}>{acc.email} ({acc.provider})</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Size range */}
+                    <div>
+                      <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Size Range (MB)</label>
+                      <div className="mt-1 flex items-center gap-2">
+                        <input type="number" placeholder="Min" value={filterMinSize} onChange={(e) => setFilterMinSize(e.target.value)} className="block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:border-blue-500 focus:bg-white focus:outline-none" />
+                        <span className="text-slate-400 text-xs font-semibold">to</span>
+                        <input type="number" placeholder="Max" value={filterMaxSize} onChange={(e) => setFilterMaxSize(e.target.value)} className="block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:border-blue-500 focus:bg-white focus:outline-none" />
+                      </div>
+                    </div>
+
+                    {/* Date range */}
+                    <div>
+                      <label className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Date Range</label>
+                      <div className="mt-1 flex items-center gap-2">
+                        <input type="date" value={filterStartDate} onChange={(e) => setFilterStartDate(e.target.value)} className="block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:border-blue-500 focus:bg-white focus:outline-none" />
+                        <span className="text-slate-400 text-xs font-semibold">to</span>
+                        <input type="date" value={filterEndDate} onChange={(e) => setFilterEndDate(e.target.value)} className="block w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:border-blue-500 focus:bg-white focus:outline-none" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-5 flex justify-end gap-2 border-t border-slate-100 pt-4">
+                    <Button variant="outline" size="sm" type="button" onClick={() => setFiltersOpen(false)}>Cancel</Button>
+                    <Button variant="default" size="sm" type="button" onClick={applyFilters}>Apply Filters</Button>
+                  </div>
+                </div>
+              )}
+            </div>
              <div className="relative hidden flex-wrap gap-3 lg:flex">
               <Button variant="outline" size="icon" aria-label="Toggle theme" onClick={toggleTheme}>
                 {theme === 'light' ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}

@@ -12,7 +12,9 @@ import { googleDownloadExportMimeTypes, normalizeHeaders, withExtension } from '
 import { GetObjectCommand } from '@aws-sdk/client-s3'
 import { Readable } from 'node:stream'
 import archiverModule from 'archiver'
+import { createAuditLog } from '../../utils/audit.js'
 const archiver = (archiverModule as any).default || archiverModule
+
 
 
 export const fileRouter = Router()
@@ -35,8 +37,54 @@ fileRouter.use(requireAuth)
 
 fileRouter.get('/', async (req: AuthRequest, res, next) => {
   try {
-    const query = z.object({ folderId: z.string().optional(), q: z.string().trim().max(255).optional() }).parse(req.query)
-    const files = await prisma.file.findMany({ where: { userId: req.user!.id, status: 'active', ...(query.folderId ? { folderId: query.folderId } : {}), ...(query.q ? { name: { contains: query.q } } : {}) }, include: { connectedAccount: { select: { id: true, email: true, provider: true } }, folder: { select: { id: true, name: true } } }, orderBy: { createdAt: 'desc' } })
+    const query = z.object({
+      folderId: z.string().optional(),
+      q: z.string().trim().max(255).optional(),
+      kind: z.enum(['image', 'video', 'pdf', 'doc', 'archive']).optional(),
+      accountId: z.string().optional(),
+      minSize: z.coerce.number().optional(),
+      maxSize: z.coerce.number().optional(),
+      startDate: z.string().datetime().optional(),
+      endDate: z.string().datetime().optional()
+    }).parse(req.query)
+
+    const typeFilters: Record<string, string[]> = {
+      image: ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml'],
+      video: ['video/mp4', 'video/mpeg', 'video/ogg', 'video/quicktime', 'video/webm'],
+      pdf: ['application/pdf'],
+      doc: ['application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain'],
+      archive: ['application/zip', 'application/x-rar-compressed', 'application/x-tar', 'application/x-7z-compressed']
+    }
+
+    const where: any = {
+      userId: req.user!.id,
+      status: 'active',
+      ...(query.folderId ? { folderId: query.folderId } : {}),
+      ...(query.q ? { name: { contains: query.q } } : {}),
+      ...(query.accountId ? { connectedAccountId: query.accountId } : {}),
+      ...(query.kind ? { mimeType: { in: typeFilters[query.kind] || [] } } : {}),
+      ...(query.minSize !== undefined || query.maxSize !== undefined ? {
+        sizeBytes: {
+          ...(query.minSize !== undefined ? { gte: BigInt(query.minSize) } : {}),
+          ...(query.maxSize !== undefined ? { lte: BigInt(query.maxSize) } : {})
+        }
+      } : {}),
+      ...(query.startDate || query.endDate ? {
+        createdAt: {
+          ...(query.startDate ? { gte: new Date(query.startDate) } : {}),
+          ...(query.endDate ? { lte: new Date(query.endDate) } : {})
+        }
+      } : {})
+    }
+
+    const files = await prisma.file.findMany({
+      where,
+      include: {
+        connectedAccount: { select: { id: true, email: true, provider: true } },
+        folder: { select: { id: true, name: true } }
+      },
+      orderBy: { createdAt: 'desc' }
+    })
     return res.json({ files: files.map((file) => ({ ...file, sizeBytes: file.sizeBytes.toString() })) })
   } catch (error) {
     return next(error)
@@ -50,6 +98,7 @@ fileRouter.patch('/batch', async (req: AuthRequest, res, next) => {
     const body = batchFileSchema.extend({ folderId: z.string().nullable().optional() }).parse(req.body)
     if (body.folderId) await prisma.folder.findFirstOrThrow({ where: { id: body.folderId, userId: req.user!.id, deletedAt: null } })
     const result = await prisma.file.updateMany({ where: { id: { in: body.fileIds }, userId: req.user!.id, status: 'active' }, data: { folderId: body.folderId ?? null } })
+    await createAuditLog(req.user!.id, 'MOVE_FILES', 'file', undefined, { count: result.count, folderId: body.folderId })
     return res.json({ status: 'ok', moved: result.count })
   } catch (error) {
     return next(error)
@@ -59,10 +108,14 @@ fileRouter.patch('/batch', async (req: AuthRequest, res, next) => {
 fileRouter.delete('/batch', async (req: AuthRequest, res, next) => {
   try {
     const body = batchFileSchema.parse(req.body)
+    const files = await prisma.file.findMany({ where: { id: { in: body.fileIds }, userId: req.user!.id, status: 'active' } })
     const result = await prisma.file.updateMany({
       where: { id: { in: body.fileIds }, userId: req.user!.id, status: 'active' },
       data: { status: 'deleted', deletedAt: new Date() }
     })
+    for (const f of files) {
+      await createAuditLog(req.user!.id, 'TRASH_FILE', 'file', f.id, { name: f.name })
+    }
     return res.json({ status: 'ok', deleted: result.count })
   } catch (error) {
     return next(error)
@@ -93,10 +146,14 @@ fileRouter.get('/trash', async (req: AuthRequest, res, next) => {
 fileRouter.post('/batch/restore', async (req: AuthRequest, res, next) => {
   try {
     const body = batchFileSchema.parse(req.body)
+    const files = await prisma.file.findMany({ where: { id: { in: body.fileIds }, userId: req.user!.id, status: 'deleted' } })
     const result = await prisma.file.updateMany({
       where: { id: { in: body.fileIds }, userId: req.user!.id, status: 'deleted' },
       data: { status: 'active', deletedAt: null }
     })
+    for (const f of files) {
+      await createAuditLog(req.user!.id, 'RESTORE_FILE', 'file', f.id, { name: f.name })
+    }
     return res.json({ status: 'ok', restored: result.count })
   } catch (error) {
     return next(error)
@@ -125,6 +182,7 @@ fileRouter.delete('/batch/permanent', async (req: AuthRequest, res, next) => {
         }
         deletedIds.push(file.id)
         syncedAccountIds.add(file.connectedAccountId)
+        await createAuditLog(req.user!.id, 'PERMANENT_DELETE_FILE', 'file', file.id, { name: file.name })
       } catch (error) {
         failed.push({ fileId: file.id, message: error instanceof Error ? error.message : 'Delete failed' })
       }
@@ -214,6 +272,7 @@ fileRouter.patch('/:id', async (req: AuthRequest, res, next) => {
     if (body.folderId) await prisma.folder.findFirstOrThrow({ where: { id: body.folderId, userId: req.user!.id, deletedAt: null } })
     if (body.name && drive) await drive.files.update({ fileId: file.providerFileId, requestBody: { name: body.name } })
     const updated = await prisma.file.update({ where: { id: file.id }, data: { ...(body.name ? { name: body.name } : {}), ...(body.folderId !== undefined ? { folderId: body.folderId } : {}) }, include: { connectedAccount: { select: { id: true, email: true, provider: true } }, folder: { select: { id: true, name: true } } } })
+    await createAuditLog(req.user!.id, 'UPDATE_FILE', 'file', updated.id, { name: updated.name, updates: body })
     return res.json({ file: { ...updated, sizeBytes: updated.sizeBytes.toString() } })
   } catch (error) {
     return next(error)
@@ -287,6 +346,7 @@ fileRouter.delete('/:id', async (req: AuthRequest, res, next) => {
     const fileId = String(req.params.id)
     const file = await prisma.file.findFirstOrThrow({ where: { id: fileId, userId: req.user!.id, status: 'active' } })
     await prisma.file.update({ where: { id: file.id }, data: { status: 'deleted', deletedAt: new Date() } })
+    await createAuditLog(req.user!.id, 'TRASH_FILE', 'file', file.id, { name: file.name })
     return res.json({ status: 'ok' })
   } catch (error) {
     return next(error)

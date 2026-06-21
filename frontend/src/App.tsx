@@ -15,6 +15,8 @@ import { StarredPage } from '@/pages/StarredPage'
 import { PublicFilePage } from '@/pages/PublicFilePage'
 import { ApiManagementPage } from '@/pages/ApiManagementPage'
 import { TrashPage } from '@/pages/TrashPage'
+import { ActivityLogPage } from '@/pages/ActivityLogPage'
+
 
 function App() {
   return (
@@ -35,6 +37,7 @@ function App() {
           <Route path="starred" element={<StarredPage />} />
           <Route path="archived" element={<ArchivedPage />} />
           <Route path="trash" element={<TrashPage />} />
+          <Route path="activity" element={<ActivityLogPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="api" element={<ApiManagementPage />} />
         </Route>

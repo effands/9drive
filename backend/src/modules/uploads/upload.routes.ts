@@ -8,6 +8,7 @@ import { prisma } from '../../config/prisma.js'
 import { requireAuth, type AuthRequest } from '../../middleware/auth.middleware.js'
 import { ensureGoogleAppFolder, getAuthedGoogleClient, syncGoogleQuota } from '../google/google.service.js'
 import { buildS3ObjectKey, getS3ConfigForAccount, syncS3Quota, uploadS3Object } from '../s3/s3.service.js'
+import { createAuditLog } from '../../utils/audit.js'
 
 export const uploadRouter = Router()
 
@@ -456,6 +457,8 @@ uploadRouter.put('/resumable/chunk/:id', requireAuth, async (req: AuthRequest, r
         where: { id: session.id },
         data: { status: 'completed', completedAt: new Date() }
       })
+
+      await createAuditLog(req.user!.id, 'UPLOAD_FILE', 'file', existingFile.id, { name: existingFile.name, size: existingFile.sizeBytes.toString() })
 
       syncQuotaInBackground(account.id, session.id)
 
