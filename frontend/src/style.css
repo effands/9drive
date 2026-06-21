@@ -17,8 +17,6 @@
   --input-bg: rgba(255, 255, 255, 0.5);
   --input-border: rgba(255, 255, 255, 0.6);
   --input-focus-bg: rgba(255, 255, 255, 0.85);
-  --item-bg: rgba(255, 255, 255, 0.03);
-  --item-border: rgba(255, 255, 255, 0.05);
   --shadow-color: rgba(0, 0, 0, 0.02);
   --shadow-hover: rgba(0, 0, 0, 0.04);
   --active-nav-bg: linear-gradient(135deg, rgba(59, 130, 246, 0.08) 0%, rgba(99, 102, 241, 0.08) 100%);
@@ -28,6 +26,11 @@
   --button-hover-shadow: rgba(59, 130, 246, 0.35);
   --outline-btn-bg: rgba(255, 255, 255, 0.02);
   --outline-btn-border: rgba(255, 255, 255, 0.2);
+  
+  /* Overrides for Tailwind Slate Utilities */
+  --slate-50-override: #f8fafc;
+  --slate-100-override: #f1f5f9;
+  --slate-200-override: #e2e8f0;
 }
 
 :root.dark {
@@ -46,8 +49,6 @@
   --input-bg: rgba(255, 255, 255, 0.04);
   --input-border: rgba(255, 255, 255, 0.08);
   --input-focus-bg: rgba(255, 255, 255, 0.08);
-  --item-bg: rgba(255, 255, 255, 0.03);
-  --item-border: rgba(255, 255, 255, 0.05);
   --shadow-color: rgba(0, 0, 0, 0.3);
   --shadow-hover: rgba(0, 0, 0, 0.4);
   --active-nav-bg: linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(244, 63, 94, 0.05) 100%);
@@ -57,6 +58,11 @@
   --button-hover-shadow: rgba(99, 102, 241, 0.5);
   --outline-btn-bg: rgba(255, 255, 255, 0.02);
   --outline-btn-border: rgba(255, 255, 255, 0.1);
+  
+  /* Overrides for Tailwind Slate Utilities in Dark Mode */
+  --slate-50-override: rgba(255, 255, 255, 0.03);
+  --slate-100-override: rgba(255, 255, 255, 0.08);
+  --slate-200-override: rgba(255, 255, 255, 0.15);
 }
 
 :root {
@@ -91,10 +97,36 @@ main,
 main.bg-white,
 main div.bg-white,
 main section.bg-white,
-section.min-w-0,
-.bg-white {
+section.min-w-0 {
   background: transparent !important;
   background-color: transparent !important;
+}
+
+/* Override solid bg-white on containers to keep glass effect */
+div.bg-white:not(button), 
+section.bg-white:not(button) {
+  background-color: transparent !important;
+}
+
+/* Map Tailwind Slate background utilities to theme variables */
+.bg-slate-50 {
+  background-color: var(--slate-50-override) !important;
+}
+.bg-slate-100 {
+  background-color: var(--slate-100-override) !important;
+}
+.bg-slate-200 {
+  background-color: var(--slate-200-override) !important;
+}
+
+/* Hover effects for background classes */
+.hover\:bg-slate-100:hover {
+  background-color: var(--slate-100-override) !important;
+  opacity: 0.9;
+}
+.hover\:bg-slate-200:hover {
+  background-color: var(--slate-200-override) !important;
+  opacity: 0.95;
 }
 
 /* Base Text Color Overrides */
@@ -161,17 +193,6 @@ div.border.border-slate-200,
   transform: translateY(-2px);
 }
 
-/* Folder lists / item wrappers in dashboard */
-.bg-slate-50 {
-  background: var(--item-bg) !important;
-  border: 1px solid var(--item-border) !important;
-  transition: all 0.3s ease;
-}
-
-.hover\:bg-slate-100:hover {
-  background: var(--item-border) !important;
-}
-
 /* Inputs and Select Boxes */
 input, select, textarea {
   background: var(--input-bg) !important;
@@ -212,7 +233,7 @@ nav a.active, aside a.active {
 }
 
 nav a:not(.active):hover, aside a:not(.active):hover {
-  background: var(--item-border) !important;
+  background: var(--slate-100-override) !important;
   color: var(--text-primary) !important;
   transform: translateX(3px);
 }
@@ -250,7 +271,7 @@ button.border-slate-200,
 
 button.border-slate-200:hover,
 .border-slate-200:hover {
-  background: var(--item-border) !important;
+  background: var(--slate-100-override) !important;
   border-color: var(--outline-btn-border) !important;
 }
 
