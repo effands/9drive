@@ -158,16 +158,22 @@ export async function handleUpload(req: AuthRequest, res: Response, next: NextFu
           return
         }
 
-        const account = await selectAccount(req.user!.id, meta.sizeBytes, reservedBytesByAccount)
+        const folderId = meta.folderId || null
+        let targetAccountId: string | undefined = undefined
+        if (folderId) {
+          const folderRecord = await prisma.folder.findFirstOrThrow({ where: { id: folderId, userId: req.user!.id, deletedAt: null } })
+          if (folderRecord.connectedAccountId) {
+            targetAccountId = folderRecord.connectedAccountId
+          }
+        }
+
+        const account = await selectAccount(req.user!.id, meta.sizeBytes, reservedBytesByAccount, targetAccountId)
         if (!account) {
           fileStream.resume()
           failed.push({ fileName, code: 'NO_ACCOUNT_WITH_ENOUGH_SPACE', message: 'No connected storage account has enough space for this upload.' })
           return
         }
         reservedBytesByAccount.set(account.id, (reservedBytesByAccount.get(account.id) ?? 0n) + meta.sizeBytes)
-
-        const folderId = meta.folderId || null
-        if (folderId) await prisma.folder.findFirstOrThrow({ where: { id: folderId, userId: req.user!.id, deletedAt: null } })
 
         const session = await prisma.uploadSession.create({ data: { userId: req.user!.id, targetConnectedAccountId: account.id, folderId, fileName, mimeType: meta.mimeType, sizeBytes: meta.sizeBytes, status: 'uploading' } })
         logUpload('file upload started', { sessionId: session.id, accountId: account.id, fileName, sizeBytes: meta.sizeBytes.toString() })
@@ -293,11 +299,17 @@ uploadRouter.post('/resumable/init', requireAuth, async (req: AuthRequest, res, 
     if (sizeBytes <= 0n) return res.status(400).json({ code: 'UPLOAD_SIZE_REQUIRED', message: 'Valid sizeBytes required.' })
     if (sizeBytes > BigInt(env.MAX_UPLOAD_BYTES)) return res.status(400).json({ code: 'UPLOAD_TOO_LARGE', message: 'File exceeds max upload size.' })
 
-    const account = await selectAccount(req.user!.id, sizeBytes, undefined, body.targetAccountId)
-    if (!account) return res.status(400).json({ code: 'NO_ACCOUNT_WITH_ENOUGH_SPACE', message: 'No connected storage account has enough space.' })
-
     const folderId = body.folderId || null
-    if (folderId) await prisma.folder.findFirstOrThrow({ where: { id: folderId, userId: req.user!.id, deletedAt: null } })
+    let targetAccountId = body.targetAccountId
+    if (folderId) {
+      const folderRecord = await prisma.folder.findFirstOrThrow({ where: { id: folderId, userId: req.user!.id, deletedAt: null } })
+      if (folderRecord.connectedAccountId) {
+        targetAccountId = folderRecord.connectedAccountId
+      }
+    }
+
+    const account = await selectAccount(req.user!.id, sizeBytes, undefined, targetAccountId)
+    if (!account) return res.status(400).json({ code: 'NO_ACCOUNT_WITH_ENOUGH_SPACE', message: 'No connected storage account has enough space.' })
 
     if (account.provider !== 'google_drive') {
       const session = await prisma.uploadSession.create({
