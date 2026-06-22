@@ -1,11 +1,13 @@
 import { FolderOpen, MoreVertical, Star } from 'lucide-react'
-import type { MouseEvent } from 'react'
+import { type MouseEvent, useState } from 'react'
 import { AvatarStack } from '@/components/drive/AvatarStack'
 import { FileIcon } from '@/components/drive/FileIcon'
 import type { FileItem } from '@/data/drive-data'
 import { apiFetch } from '@/lib/api'
 
 export function FileTable({ files, mode = 'default', selectedFileIds = new Set<string>(), allSelected = false, onFileContextMenu, onToggleFile, onToggleAll }: { files: FileItem[]; mode?: 'default' | 'shared' | 'recent' | 'starred' | 'archived'; selectedFileIds?: Set<string>; allSelected?: boolean; onFileContextMenu?: (event: MouseEvent<HTMLElement>, file: FileItem) => void; onToggleFile?: (file: FileItem) => void; onToggleAll?: () => void }) {
+  const [copiedFileId, setCopiedFileId] = useState<string | null>(null)
+
   return (
     <div className="mt-4">
       {/* Mobile card view */}
@@ -99,11 +101,17 @@ export function FileTable({ files, mode = 'default', selectedFileIds = new Set<s
                           try {
                             const data = await apiFetch<{ url: string }>(`/files/${file.id}/share`, { method: 'POST' })
                             await navigator.clipboard.writeText(data.url)
+                            setCopiedFileId(file.id ?? null)
+                            setTimeout(() => setCopiedFileId(null), 2000)
                           } catch { /* ignore */ }
                         }}
-                        className="inline-flex h-7 px-2 items-center justify-center rounded-lg text-[11px] font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 transition-colors"
+                        className={
+                          copiedFileId === file.id
+                            ? "inline-flex h-7 px-2 items-center justify-center rounded-lg text-[11px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-all scale-95"
+                            : "inline-flex h-7 px-2 items-center justify-center rounded-lg text-[11px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 transition-colors"
+                        }
                       >
-                        Copy Link
+                        {copiedFileId === file.id ? 'Copied!' : 'Copy Link'}
                       </button>
                       <button
                         title="Move File"
