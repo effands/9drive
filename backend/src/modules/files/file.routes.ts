@@ -243,6 +243,15 @@ fileRouter.post('/sync-google', async (req: AuthRequest, res, next) => {
       select: { id: true },
     })
 
+    if (accounts.length === 0) {
+      return res.status(400).json({
+        code: 'NO_GOOGLE_ACCOUNTS',
+        message: body.connectedAccountId
+          ? 'Google Drive account not found or is not connected.'
+          : 'No connected Google Drive account found.',
+      })
+    }
+
     const results = []
     for (const account of accounts) results.push(await syncGoogleAppFolderFiles(account.id, req.user!.id))
 

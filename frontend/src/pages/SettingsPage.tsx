@@ -307,10 +307,14 @@ export function SettingsPage() {
 
   async function sync(accountId: string) {
     setSyncingAccountId(accountId)
+    setMessage('')
     try {
       await apiFetch(`/connected-accounts/${accountId}/sync-quota`, { method: 'POST' })
       await load()
       window.dispatchEvent(new Event('9drive:storage-changed'))
+      setMessage('Storage quota synced.')
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Failed to sync storage quota')
     } finally {
       setSyncingAccountId(null)
     }
