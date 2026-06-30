@@ -166,6 +166,11 @@ export function SettingsPage() {
           setUpdateSuccess(true)
           setIsPollingLog(false)
           setUpdateModalTitle('System Updated')
+        } else if (data.log.includes('=== System Update Failed:')) {
+          setUpdateFinished(true)
+          setUpdateSuccess(false)
+          setIsPollingLog(false)
+          setUpdateModalTitle('System Update Failed')
         }
       } catch (err) {
         if (!active) return

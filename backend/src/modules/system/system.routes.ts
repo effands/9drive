@@ -14,6 +14,13 @@ systemRouter.post('/update', requireAuth, (req, res, next) => {
   const projectRoot = path.resolve(process.cwd(), '..')
   const updateScript = path.join(projectRoot, 'update.sh')
 
+  if (fs.existsSync('/.dockerenv')) {
+    return res.status(400).json({
+      code: 'DOCKER_UPDATE_REQUIRED',
+      message: '9Drive is running inside Docker, so the in-app updater cannot rebuild the host containers. Update from your VPS terminal instead:\n\n1. cd ~/9drive\n2. git pull origin main\n3. docker-compose up -d --build\n\nAfter the containers are recreated, refresh this page.'
+    })
+  }
+
   // Check if git is installed
   exec('git --version', (gitError) => {
     if (gitError) {
@@ -318,4 +325,3 @@ function getDatabaseFilePath(): string {
   
   return cleanPath
 }
-
