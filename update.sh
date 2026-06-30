@@ -38,6 +38,6 @@ cd "$PROJECT_ROOT/frontend"
 run_step "6. Installing frontend dependencies..." npm install
 run_step "7. Building frontend..." npm run build
 
+echo "=== System Update Completed: $(date) ===" >> "$LOG_FILE"
 log "8. Restarting application via PM2..."
 run_step "8. Restarting 9drive-backend..." pm2 restart 9drive-backend --update-env
-echo "=== System Update Completed: $(date) ===" >> "$LOG_FILE"
