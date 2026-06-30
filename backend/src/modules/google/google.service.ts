@@ -22,7 +22,18 @@ export async function getAuthedGoogleClient(account: ConnectedAccount) {
   })
 
   if (account.tokenExpiresAt.getTime() < Date.now() + 60_000) {
-    const result = await client.refreshAccessToken()
+    const result = await client.refreshAccessToken().catch(async (error) => {
+      const message = error instanceof Error ? error.message : String(error)
+      const code = (error as { code?: unknown })?.code
+      if (code === 'invalid_grant' || message.includes('invalid_grant')) {
+        await prisma.connectedAccount.update({
+          where: { id: account.id },
+          data: { status: 'reauth_required', lastError: 'Google Drive authorization expired. Reconnect this account in Settings.' },
+        }).catch(() => undefined)
+        throw new Error('Google Drive authorization expired. Reconnect this account in Settings.')
+      }
+      throw error
+    })
     const credentials = result.credentials
     if (credentials.access_token) {
       await prisma.connectedAccount.update({
