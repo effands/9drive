@@ -207,11 +207,12 @@ export function SettingsPage() {
       await apiFetch<{ message: string }>('/system/update', { method: 'POST' })
       setIsPollingLog(true)
     } catch (error) {
-      setUpdateModalTitle('System Update Failed')
       const errMsg = error instanceof Error ? error.message : 'System update failed to initiate.'
-      setUpdateLog((prev) => prev + `\nError: ${errMsg}`)
+      const needsManualDockerUpdate = errMsg.includes('running inside Docker') || errMsg.includes('cannot rebuild the host containers')
+      setUpdateModalTitle(needsManualDockerUpdate ? 'Manual Update Required' : 'System Update Failed')
+      setUpdateLog((prev) => prev + `\n${needsManualDockerUpdate ? 'Manual update required' : 'Error'}: ${errMsg}`)
       setUpdateFinished(true)
-      setUpdateSuccess(false)
+      setUpdateSuccess(needsManualDockerUpdate ? null : false)
     } finally {
       setUpdatingSystem(false)
     }
@@ -649,7 +650,7 @@ export function SettingsPage() {
         title={updateModalTitle}
         description={
           updateFinished
-            ? (updateSuccess ? 'System updated successfully' : 'Update failed')
+            ? (updateSuccess === true ? 'System updated successfully' : updateSuccess === false ? 'Update failed' : 'Run the commands below in your VPS terminal')
             : 'Live installation logs'
         }
         className="max-w-2xl"
